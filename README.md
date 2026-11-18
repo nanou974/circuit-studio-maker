@@ -1,4 +1,7 @@
-# Circuit Studio 3D
+# Circuit Studio Maker
+
+> Based on [Circuit Studio 3D](https://github.com/arslansadiq87/circuit-studio) by Arslan Sadiq (MIT). This fork adds a catalogue of 70+ common ESP32/Arduino modules, AI-assisted module creation from a photo (free Gemini tier supported), and STEP/CAD import.
+
 
 Circuit Studio is a browser-first editor for arranging, wiring and presenting 3D electronics components. The editor uses React, TypeScript, Three.js, React Three Fiber, Drei, Zustand and Zod.
 
