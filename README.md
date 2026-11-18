@@ -117,3 +117,9 @@ Run `npm run test:e2e:video` for the real Chromium video acceptance, or `npm run
 ### Local model drop folder
 
 Place source models in the repository's `Custom Components/` folder. This folder is ignored by Git. Keep any `.gltf` file together with its referenced `.bin` and image files. In Component Workshop, choose the matching model format and select the file from this folder (for glTF, select its sidecars too). Then calibrate dimensions and pins, save the part to the local library, and add it to the project. An agent working in this repository can read models from this folder and prepare the component metadata; a browser cannot automatically read arbitrary local files without a file selection. For a portable project, use **Save** or **Package** to embed the imported model.
+
+## Module catalogue, AI assistant and STEP import
+
+- **Built-in catalogue**: ~70 common ESP32/Arduino modules (TP4056, HC-SR04, XL4015, L298N, A4988, BME280, MPU-6050, RC522, SSD1306, Pico, Nano…) appear in the Parts Bin as procedural PCBs with labelled pins. Sizes and pin order are the typical ones and flagged unverified — check against your board. Add more in `src/catalog.ts`.
+- **AI assistant** (Create component → AI Assistant): give a photo, a description and/or a pinout; the model proposes name, description, size and pins, which you correct before saving. Providers: Google Gemini (free tier), OpenRouter free models, Anthropic. You supply your own API key; it is sent straight from the browser to the provider and never stored in projects.
+- **STEP / IGES / BREP import**: Create component → STEP / CAD. Files are tessellated in the browser with OpenCascade (WASM, loaded on demand) and converted to GLB; then place pins as for any model.

@@ -2,8 +2,9 @@
 import { z } from 'zod';
 import { ComponentSchema, type Component } from './model';
 import {putAsset,readAsset,fromBase64,toBase64} from './assets';
+import {catalogParts,CATALOG_VERSION} from './catalog';
 export const CustomPinSchema=ComponentSchema.shape.pins.element.extend({orientation:ComponentSchema.shape.pins.element.shape.orientation.default([0,0,0]),electrical:ComponentSchema.shape.pins.element.shape.electrical.default('passive'),voltage:ComponentSchema.shape.pins.element.shape.voltage.optional(),exitDirection:ComponentSchema.shape.pins.element.shape.exitDirection.default([0,0,1]),localPosition:ComponentSchema.shape.pins.element.shape.localPosition.default([0,0,0])});
-export const LibraryPartSchema=z.object({id:z.string(),name:z.string().min(1),category:z.string(),dimensions:z.tuple([z.number().positive(),z.number().positive(),z.number().positive()]),format:z.enum(['glb','gltf','obj','stl','procedural-pcb']),asset: z.string().optional(),assetHash:z.string().optional(),geometry:ComponentSchema.shape.geometry, pins:z.array(CustomPinSchema)});
+export const LibraryPartSchema=z.object({id:z.string(),name:z.string().min(1),category:z.string(),description:z.string().max(1200).optional(),dimensions:z.tuple([z.number().positive(),z.number().positive(),z.number().positive()]),format:z.enum(['glb','gltf','obj','stl','procedural-pcb']),asset: z.string().optional(),assetHash:z.string().optional(),geometry:ComponentSchema.shape.geometry, pins:z.array(CustomPinSchema)});
 export type LibraryPart=z.infer<typeof LibraryPartSchema>;
 export type StoredLibraryPart=LibraryPart & {modelId:string};
 let dbPromise:Promise<IDBPDatabase>|undefined;
@@ -16,3 +17,6 @@ export async function deletePart(id:string){await (await db()).delete('parts',id
 export function asComponent(part:LibraryPart,id=`${part.id}-${Date.now()}`):Component{return {id,modelId:`custom:${part.id}`,name:part.name,position:[0,0,18],rotation:[0,0,0],pins:part.pins,dimensions:part.dimensions,geometry:part.geometry};}
 export function exportPart(part:LibraryPart){const data=LibraryPartSchema.parse(part);return new Blob([JSON.stringify({format:'c3d-component',version:1,part:data},null,2)],{type:'application/vnd.circuit-studio.component+json'});}
 export async function importPart(file:File){if(file.size>100*1024*1024)throw new Error('Component packages must be smaller than 100 MB');const parsed=JSON.parse(await file.text());return savePart(LibraryPartSchema.parse(parsed.part));}
+
+/** Seeds (or refreshes after a catalogue update) the built-in module catalogue into the local library. */
+export async function seedCatalog(){let seen='';try{seen=localStorage.getItem('c3d-catalog-version')??''}catch{/* storage unavailable */}if(seen===String(CATALOG_VERSION))return;const d=await db();const tx=d.transaction('parts','readwrite');for(const part of catalogParts())await tx.store.put(LibraryPartSchema.parse(part));await tx.done;try{localStorage.setItem('c3d-catalog-version',String(CATALOG_VERSION))}catch{/* ignore */}}
