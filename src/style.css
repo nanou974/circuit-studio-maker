@@ -62,3 +62,4 @@
 .ai-assistant a{color:inherit;text-decoration:underline}
 
 .hole-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center}.hole-row input{min-width:0;width:100%}
+.preview-undo{position:absolute;top:44px;left:12px;z-index:2;height:26px;padding:0 10px}

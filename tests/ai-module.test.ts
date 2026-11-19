@@ -75,4 +75,9 @@ it('clips over-long text instead of rejecting the draft',()=>{
   expect(d.pins[0].functions?.[0]).toHaveLength(40);
   expect(d.description).toHaveLength(500);
 });
+it('keeps the corner radius, clamped to half the shortest side',()=>{
+  const d=ModuleDraftSchema.parse({name:'M',width:20,height:12,pins:[{label:'A',side:'top'}],cornerRadius:30});
+  expect(draftToBuilder(d).cornerRadius).toBe(6);
+  expect(draftToBuilder(ModuleDraftSchema.parse({name:'M',pins:[{label:'A',side:'top'}]})).cornerRadius).toBe(0);
+});
 
