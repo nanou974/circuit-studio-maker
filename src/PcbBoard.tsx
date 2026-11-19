@@ -33,3 +33,18 @@ export function PcbBoard({ dimensions, color, roughness = 0.72, holes, radius, c
   if (!geometry) return <RoundedBox args={dimensions} radius={radius ?? Math.min(1, t / 3)}><meshStandardMaterial color={color} roughness={roughness} /></RoundedBox>;
   return <mesh geometry={geometry}><meshStandardMaterial color={color} roughness={roughness} /></mesh>;
 }
+
+/** Positioning grid on the board's top face, aligned to the board centre (the pin coordinate origin). */
+export function PlacementGrid({ dimensions, step }: { dimensions: [number, number, number]; step: number }) {
+  const [w, h, t] = dimensions;
+  const geometry = useMemo(() => {
+    const s = Math.max(0.25, step);
+    const pts: number[] = [];
+    for (let x = -Math.floor(w / 2 / s) * s; x <= w / 2 + 1e-6; x += s) pts.push(x, -h / 2, 0, x, h / 2, 0);
+    for (let y = -Math.floor(h / 2 / s) * s; y <= h / 2 + 1e-6; y += s) pts.push(-w / 2, y, 0, w / 2, y, 0);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    return g;
+  }, [w, h, step]);
+  return <lineSegments geometry={geometry} position={[0, 0, t / 2 + 0.04]}><lineBasicMaterial color="#ffffff" transparent opacity={0.35} /></lineSegments>;
+}
