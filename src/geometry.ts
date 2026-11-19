@@ -3,6 +3,18 @@ import type { Component, Pin } from './model';
 import type { Wire } from './model';
 import {AUTO_WIRE_SPACING_MM} from './wireSpacing';
 import {cleanRoutePoints} from './cleanRouting';
+/**
+ * Custom model pins are stored in the model's own frame (the workshop shows them rotated by the model orientation),
+ * but the scene rotates only the mesh. Rotate the pins once so that wires and markers meet the visible model.
+ */
+export function orientModelPins(component:Component):Component{
+ const g=component.geometry;
+ if(!g||g.kind!=='model'||g.pinsOriented||!component.modelId.startsWith('custom:'))return component;
+ const o=g.modelOrientation;
+ if(!o||o.every(v=>Math.abs(v)<1e-6))return {...component,geometry:{...g,pinsOriented:true}};
+ const euler=new THREE.Euler(...o),turn=(v:[number,number,number])=>new THREE.Vector3(...v).applyEuler(euler).toArray().map(n=>Number(n.toFixed(4))) as [number,number,number];
+ return {...component,geometry:{...g,pinsOriented:true},pins:component.pins.map(p=>({...p,localPosition:p.localPosition?turn(p.localPosition):p.localPosition,exitDirection:p.exitDirection?turn(p.exitDirection):p.exitDirection}))};
+}
 export function localPin(pin:Pin,_component:Component){if(pin.localPosition)return new THREE.Vector3(...pin.localPosition);return new THREE.Vector3(pin.side==='left'?-15:15,9-pin.index*.87,2.4)}
 export function worldPin(pin:Pin,component:Component){return localPin(pin,component).applyEuler(new THREE.Euler(...component.rotation.map(v=>THREE.MathUtils.degToRad(v)) as [number,number,number])).add(new THREE.Vector3(...component.position))}
 export function resolvePin(component:Component,pinId:string){return component.pins.find(pin=>pin.id===pinId)}
