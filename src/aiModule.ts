@@ -16,18 +16,22 @@ export const CATEGORIES = ['Custom Components', 'Connectors', 'Modules', 'Power'
 export const ELECTRICAL = ['input', 'output', 'bidirectional', 'power-in', 'power-out', 'ground', 'passive'] as const;
 export const SIDES = ['left', 'right', 'top', 'bottom'] as const;
 
+// Models sometimes overrun length hints: clip text instead of rejecting the whole draft.
+const clip = (max: number) => z.string().transform(v => v.trim().slice(0, max));
+const clipArray = <T extends z.ZodTypeAny>(item: T, max: number) => z.array(item).transform(a => a.slice(0, max));
+
 export const DraftPinSchema = z.object({
-  label: z.string().min(1).max(40),
+  label: clip(40).pipe(z.string().min(1)),
   side: z.enum(SIDES),
   electrical: z.enum(ELECTRICAL).default('passive'),
   voltage: z.number().finite().optional(),
-  functions: z.array(z.string().max(40)).max(12).optional(),
-  notes: z.string().max(240).optional(),
+  functions: clipArray(clip(40), 12).optional(),
+  notes: clip(240).optional(),
 });
 export const ModuleDraftSchema = z.object({
-  name: z.string().min(1).max(80),
+  name: clip(80).pipe(z.string().min(1)),
   category: z.enum(CATEGORIES).default('Modules'),
-  description: z.string().max(1200).default(''),
+  description: clip(1200).default(''),
   width: z.number().finite().min(4).max(200).optional(),
   height: z.number().finite().min(4).max(200).optional(),
   pcbColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
@@ -37,8 +41,8 @@ export const ModuleDraftSchema = z.object({
     fromTop: z.number().finite().min(0).max(500),
     diameter: z.number().finite().min(0.5).max(20),
   })).max(16).optional(),
-  warnings: z.array(z.string().max(240)).max(10).default([]),
-  pins: z.array(DraftPinSchema).min(1).max(120),
+  warnings: clipArray(clip(240), 10).default([]),
+  pins: z.array(DraftPinSchema).min(1).transform(a => a.slice(0, 120)),
 });
 export type ModuleDraft = z.infer<typeof ModuleDraftSchema>;
 

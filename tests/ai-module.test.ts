@@ -67,4 +67,12 @@ it('converts mounting holes from top-left offsets to board-centred coordinates',
   const l=draftToBuilder(d);
   expect(l.holes).toEqual([{x:-43.01,y:22.02,diameter:3.2}]);
 });
+it('clips over-long text instead of rejecting the draft',()=>{
+  const long='x'.repeat(500);
+  const d=ModuleDraftSchema.parse({name:'M',description:long,warnings:[long],pins:[{label:'A',side:'left',notes:long,functions:[long]}]});
+  expect(d.warnings[0]).toHaveLength(240);
+  expect(d.pins[0].notes).toHaveLength(240);
+  expect(d.pins[0].functions?.[0]).toHaveLength(40);
+  expect(d.description).toHaveLength(500);
+});
 
