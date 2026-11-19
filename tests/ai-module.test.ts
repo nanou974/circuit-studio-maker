@@ -62,3 +62,9 @@ it('retries when the service is overloaded (503)',async()=>{
   expect(fetchImpl).toHaveBeenCalledTimes(2);
   vi.useRealTimers();
 });
+it('converts mounting holes from top-left offsets to board-centred coordinates',()=>{
+  const d=ModuleDraftSchema.parse({name:'TFT',width:98,height:56,pins:[{label:'A',side:'right'}],holes:[{fromLeft:5.99,fromTop:5.98,diameter:3.2},{fromLeft:98,fromTop:70,diameter:3}]});
+  const l=draftToBuilder(d);
+  expect(l.holes).toEqual([{x:-43.01,y:22.02,diameter:3.2}]);
+});
+

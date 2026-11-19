@@ -60,3 +60,5 @@
 .ai-assistant input[type=checkbox]{width:14px;height:14px;padding:0;flex:none}
 .ai-assistant .ai-warnings{margin:6px 0 0;padding:6px 8px 6px 22px;font-size:12px;color:#e4ad4f;border:1px solid rgba(228,173,79,.35);border-radius:6px}
 .ai-assistant a{color:inherit;text-decoration:underline}
+
+.hole-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center}.hole-row input{min-width:0;width:100%}
