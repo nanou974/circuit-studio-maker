@@ -80,4 +80,10 @@ it('keeps the corner radius, clamped to half the shortest side',()=>{
   expect(draftToBuilder(d).cornerRadius).toBe(6);
   expect(draftToBuilder(ModuleDraftSchema.parse({name:'M',pins:[{label:'A',side:'top'}]})).cornerRadius).toBe(0);
 });
+it('sets pins back from the edge when an inset is given',()=>{
+  const d=ModuleDraftSchema.parse({name:'M',width:98,height:56,pins:[{label:'A',side:'right',inset:35},{label:'B',side:'right'}]});
+  const l=draftToBuilder(d);
+  expect(l.pins[0].localPosition?.[0]).toBe(14);
+  expect(l.pins[1].localPosition?.[0]).toBe(47.73);
+});
 

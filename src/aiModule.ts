@@ -25,6 +25,7 @@ export const DraftPinSchema = z.object({
   side: z.enum(SIDES),
   electrical: z.enum(ELECTRICAL).default('passive'),
   voltage: z.number().finite().optional(),
+  inset: z.number().finite().min(0).max(200).optional(),
   functions: clipArray(clip(40), 12).optional(),
   notes: clip(240).optional(),
 });
@@ -88,6 +89,7 @@ export const DRAFT_TOOL = {
             side: { type: 'string', enum: [...SIDES] },
             electrical: { type: 'string', enum: [...ELECTRICAL] },
             voltage: { type: 'number', description: 'Nominal voltage for power/ground pins (GND = 0).' },
+            inset: { type: 'number', description: 'Only when the pin is clearly set back from its board edge (e.g. a connector inside the board): distance in mm from that edge to the pin centre. Omit for pins at the edge.' },
             functions: { type: 'array', items: { type: 'string' }, description: 'Alternate functions, e.g. ["I2C SDA","ADC1_CH3"].' },
             notes: { type: 'string' },
           },
@@ -101,6 +103,7 @@ export const SYSTEM_PROMPT = `You convert datasheet snippets, product photos and
 Rules:
 - Use only pins you can actually see or that the user text states, or that the named product is known to have. Never invent pins to reach a "typical" count; if something is ambiguous, keep the pin and say so in its notes.
 - Keep labels exactly as printed on the board / in the table. Put alternate functions in "functions".
+- Do NOT add pins for pads, connectors or pin rows that have no printed label and are not described by the user; skip them rather than inventing names.
 - Choose "side" from the board orientation in the photo (or from the user's pinout columns). For a single-row header use one side only.
 - Set electrical to power-in / power-out / ground for supply pins (with voltage when stated, GND = 0), input/output/bidirectional for signals, passive otherwise.
 - Dimensions in millimetres: use stated values; otherwise estimate from the photo using visible references (2.54 mm header pitch, known chips/connectors) or from your knowledge of the named product, and add a warning saying they are estimated. Omit them if you cannot estimate.
@@ -282,10 +285,10 @@ const slug = (s: string) => s.replace(/\+/g, '_PLUS').replace(/-/g, '_MINUS').re
  */
 export function draftToBuilder(draft: ModuleDraft, thickness = 1.6): BuilderLayout {
   const pitch = draft.pitch ?? 2.54;
-  const inset = 1.27;
+  const defaultInset = 1.27;
   const bySide: Record<(typeof SIDES)[number], ModuleDraft['pins']> = { left: [], right: [], top: [], bottom: [] };
   for (const p of draft.pins) bySide[p.side].push(p);
-  const need = (n: number) => (n > 0 ? (n - 1) * pitch + 2 * inset + pitch : 0);
+  const need = (n: number) => (n > 0 ? (n - 1) * pitch + 2 * defaultInset + pitch : 0);
   const width = Math.max(draft.width ?? 0, need(bySide.top.length), need(bySide.bottom.length), 10);
   const height = Math.max(draft.height ?? 0, need(bySide.left.length), need(bySide.right.length), 10);
   const z = thickness / 2;
@@ -300,6 +303,8 @@ export function draftToBuilder(draft: ModuleDraft, thickness = 1.6): BuilderLayo
   const place = (side: (typeof SIDES)[number], list: ModuleDraft['pins']) => {
     list.forEach((p, index) => {
       const along = (index - (list.length - 1) / 2) * pitch;
+      const half = side === 'left' || side === 'right' ? width / 2 : height / 2;
+      const inset = Math.min(p.inset ?? defaultInset, half - 0.5);
       const [x, y] = side === 'left' ? [-width / 2 + inset, -along]
         : side === 'right' ? [width / 2 - inset, -along]
         : side === 'top' ? [along, height / 2 - inset]
