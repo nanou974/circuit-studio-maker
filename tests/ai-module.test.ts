@@ -18,13 +18,13 @@ describe('ai module drafts',()=>{
   expect(pins.map(p=>[p.label,p.side])).toEqual([['VCC','left'],['GND','right'],['SDA','left']]);
   expect(guessElectrical('GND')).toBe('ground');
  });
- it('sends a forced tool call and parses the reply',async()=>{
-  const fetchImpl=vi.fn(async()=>new Response(JSON.stringify({content:[{type:'tool_use',input:{name:'M',pins:[{label:'A',side:'top'}]}}]}),{status:200}));
+ it('sends a plain JSON request (no forced tool) and parses the text reply',async()=>{
+  const fetchImpl=vi.fn(async()=>new Response(JSON.stringify({content:[{type:'text',text:'```json\n'+JSON.stringify({name:'M',pins:[{label:'A',side:'top'}]})+'\n```'}]}),{status:200}));
   const d=await generateModuleDraft({provider:'anthropic',apiKey:'k',description:'d',pinout:'',fetchImpl:fetchImpl as unknown as typeof fetch});
   expect(d.pins[0].label).toBe('A');
   const [,init]=fetchImpl.mock.calls[0] as unknown as [string,RequestInit];
   expect((init.headers as Record<string,string>)['x-api-key']).toBe('k');
-  expect(buildRequest({apiKey:'k',description:'d',pinout:''}).tool_choice.type).toBe('tool');
+  const req=buildRequest({apiKey:'k',description:'d',pinout:''}) as Record<string,unknown>;expect(req.tool_choice).toBeUndefined();expect(req.tools).toBeUndefined();
  });
  it('rejects bad responses and http errors',async()=>{
   const bad=async()=>new Response(JSON.stringify({content:[{type:'tool_use',input:{name:'M',pins:[]}}]}),{status:200});
@@ -51,4 +51,14 @@ describe('ai module drafts',()=>{
   const lim=async()=>new Response(JSON.stringify({error:{message:'quota'}}),{status:429});
   await expect(generateModuleDraft({provider:'gemini',apiKey:'g',description:'x',pinout:'',fetchImpl:lim as unknown as typeof fetch})).rejects.toThrow(/rate limit/);
  });
+});
+it('retries when the service is overloaded (503)',async()=>{
+  vi.useFakeTimers();
+  let n=0;
+  const fetchImpl=vi.fn(async()=>++n<2?new Response(JSON.stringify({error:{message:'high demand'}}),{status:503}):new Response(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({name:'M',pins:[{label:'A',side:'top'}]})}]}}]}),{status:200}));
+  const p=generateModuleDraft({provider:'gemini',apiKey:'k',description:'d',pinout:'',fetchImpl:fetchImpl as unknown as typeof fetch});
+  await vi.advanceTimersByTimeAsync(2100);
+  expect((await p).pins[0].label).toBe('A');
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+  vi.useRealTimers();
 });

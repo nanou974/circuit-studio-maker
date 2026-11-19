@@ -86,7 +86,7 @@ Rules:
 
 export type Provider = 'gemini' | 'openrouter' | 'anthropic';
 export const PROVIDERS: Record<Provider, { label: string; model: string; free: boolean; keyUrl: string; keyHint: string }> = {
-  gemini: { label: 'Google Gemini (free tier)', model: 'gemini-2.5-flash', free: true, keyUrl: 'https://aistudio.google.com/apikey', keyHint: 'AIza…' },
+  gemini: { label: 'Google Gemini (free tier)', model: 'gemini-3.8-flash', free: true, keyUrl: 'https://aistudio.google.com/apikey', keyHint: 'AIza…' },
   openrouter: { label: 'OpenRouter (free models)', model: 'google/gemma-3-27b-it:free', free: true, keyUrl: 'https://openrouter.ai/keys', keyHint: 'sk-or-…' },
   anthropic: { label: 'Anthropic Claude (paid)', model: 'claude-sonnet-5-5', free: false, keyUrl: 'https://console.anthropic.com/settings/keys', keyHint: 'sk-ant-…' },
 };
@@ -124,9 +124,8 @@ export function buildRequest(input: AiInput) {
   return {
     model: input.model || PROVIDERS.anthropic.model,
     max_tokens: 4096,
-    system: SYSTEM_PROMPT,
-    tools: [DRAFT_TOOL],
-    tool_choice: { type: 'tool', name: DRAFT_TOOL.name },
+    // No forced tool call: recent Claude models reject tool_choice "tool"/"any", so ask for bare JSON instead.
+    system: JSON_PROMPT,
     messages: [{ role: 'user', content }],
   };
 }
@@ -138,18 +137,28 @@ function extractJson(text: string): unknown {
   try { return JSON.parse(cleaned.slice(a, b + 1)); } catch { throw new AiModuleError('The model returned malformed JSON. Try again.'); }
 }
 
+const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
+  const t = setTimeout(resolve, ms);
+  signal?.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+});
+
 async function post(input: AiInput, url: string, headers: Record<string, string>, body: unknown) {
-  let res: Response;
-  try {
-    res = await (input.fetchImpl ?? fetch)(url, { method: 'POST', signal: input.signal, headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
-  } catch (e) {
-    if ((e as Error).name === 'AbortError') throw e;
-    throw new AiModuleError('Network error: could not reach the AI service.');
+  let res!: Response;
+  // Overloaded services (503/529) are usually back within seconds: retry twice before giving up.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      res = await (input.fetchImpl ?? fetch)(url, { method: 'POST', signal: input.signal, headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') throw e;
+      throw new AiModuleError('Network error: could not reach the AI service.');
+    }
+    if ((res.status !== 503 && res.status !== 529) || attempt === 2) break;
+    await sleep(2000 * (attempt + 1) ** 2, input.signal);
   }
   if (!res.ok) {
     let detail = '';
     try { const j = await res.json(); detail = j?.error?.message ?? (typeof j?.error === 'string' ? j.error : ''); } catch { /* ignore */ }
-    const hint = res.status === 429 ? ' (rate limit: wait a minute and retry)' : res.status === 401 || res.status === 403 ? ' (check the API key)' : '';
+    const hint = res.status === 404 ? ' (model unavailable: type another name in the Model field)' : res.status === 429 ? ' (rate limit: wait a minute and retry)' : res.status === 401 || res.status === 403 || /api key (not valid|invalid)/i.test(detail) ? ' (the key was rejected: it must match the selected provider, e.g. a Google AI Studio key for Gemini)' : '';
     throw new AiModuleError(`AI request failed (${res.status})${hint}${detail ? `: ${detail}` : ''}`);
   }
   return res.json();
@@ -188,9 +197,12 @@ async function rawDraft(input: AiInput): Promise<unknown> {
     // The key is the user's own and stays in this browser.
     'anthropic-dangerous-direct-browser-access': 'true',
   }, buildRequest({ ...input, model }));
-  const block = Array.isArray(body?.content) ? body.content.find((b: { type?: string }) => b.type === 'tool_use') : undefined;
-  if (!block) throw new AiModuleError('The model did not return a module definition. Try again with more detail.');
-  return block.input;
+  const blocks: { type?: string; input?: unknown; text?: string }[] = Array.isArray(body?.content) ? body.content : [];
+  const tool = blocks.find(b => b.type === 'tool_use');
+  if (tool) return tool.input;
+  const text = blocks.filter(b => b.type === 'text').map(b => b.text ?? '').join('');
+  if (!text) throw new AiModuleError('The model did not return a module definition. Try again with more detail.');
+  return extractJson(text);
 }
 
 export async function generateModuleDraft(input: AiInput): Promise<ModuleDraft> {
